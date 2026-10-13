@@ -1,16 +1,17 @@
-
 const express = require("express");
 const router = express.Router();
 const User = require("../models/user");
+const bcrypt = require("bcrypt");
 
 router.post("/signup", async (req, res) => {
     try {
         const { name, email, password } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = await User.create({
             name: name,
             email: email,
-            password: password
+            password: hashedPassword
         });
 
         res.status(201).json({
@@ -35,14 +36,10 @@ router.post("/signup", async (req, res) => {
     }
 });
 
-
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        const user = await User.findOne({
-            where: { email: email }
-        });
+        const user = await User.findOne({ where: { email: email } });
 
         if (!user) {
             return res.status(404).json({
@@ -51,10 +48,12 @@ router.post("/login", async (req, res) => {
             });
         }
 
-        if (user.password !== password) {
+        const passwordMatch = await bcrypt.compare(password, user.password);
+
+        if (!passwordMatch) {
             return res.status(401).json({
                 success: false,
-                message: "Password incorrect"
+                message: "Incorrect password"
             });
         }
 
@@ -64,13 +63,11 @@ router.post("/login", async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-
         res.status(500).json({
             success: false,
             message: "Something went wrong"
         });
     }
 });
-
 
 module.exports = router;
