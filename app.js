@@ -1,16 +1,41 @@
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+
 const userRoutes = require("./routes/user");
+const expenseRoutes = require("./routes/expense");
 const sequelize = require("./util/database");
 const User = require("./models/user");
+const Expense = require("./models/expense");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+app.use(express.static(path.join(__dirname, "frontend")));
+
+app.get("/", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "frontend", "signup", "signup.html")
+    );
+});
+
+app.get("/login", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "frontend", "login", "login.html")
+    );
+});
+
+app.get("/expense", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "frontend", "expense", "expense.html")
+    );
+});
+
 app.use("/user", userRoutes);
+app.use("/expense", expenseRoutes);
 
 sequelize
     .sync()
