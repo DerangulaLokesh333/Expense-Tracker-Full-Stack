@@ -5,10 +5,19 @@ const expenseForm = document.getElementById("expense-form");
 const expenseList = document.getElementById("expense-list");
 const message = document.getElementById("message");
 
+// Get the JWT token saved after login
+function getToken() {
+    return localStorage.getItem("token");
+}
+
 // Fetch and display saved expenses
 async function getExpenses() {
     try {
-        const response = await fetch(`${API_URL}/get-expense`);
+        const response = await fetch(`${API_URL}/get-expense`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`
+            }
+        });
 
         if (!response.ok) {
             throw new Error("Failed to fetch expenses");
@@ -20,7 +29,7 @@ async function getExpenses() {
         expenses.forEach(displayExpense);
     } catch (error) {
         console.error(error);
-        message.textContent = "Could not load expenses.";
+        message.textContent = error.message || "Could not load expenses.";
     }
 }
 
@@ -51,16 +60,17 @@ expenseForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const expenseData = {
-    amount: Number(document.getElementById("expenseamount").value),
-    description: document.getElementById("description").value.trim(),
-    category: document.getElementById("category").value
-};
+        amount: Number(document.getElementById("expenseamount").value),
+        description: document.getElementById("description").value.trim(),
+        category: document.getElementById("category").value
+    };
 
     try {
         const response = await fetch(`${API_URL}/add-expense`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${getToken()}`
             },
             body: JSON.stringify(expenseData)
         });
@@ -86,7 +96,12 @@ async function deleteExpense(id) {
     try {
         const response = await fetch(
             `${API_URL}/delete-expense/${id}`,
-            { method: "DELETE" }
+            {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${getToken()}`
+                }
+            }
         );
 
         const result = await response.json();

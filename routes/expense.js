@@ -2,17 +2,19 @@
 const express = require("express");
 const router = express.Router();
 const Expense = require("../models/expense");
+const { authenticateUser } = require("../middleware/auth");
 
 // Add expense
-router.post("/add-expense", async (req, res) => {
+router.post("/add-expense", authenticateUser, async (req, res) => {
     try {
         const { amount, description, category } = req.body;
 
-const expense = await Expense.create({
-    amount,
-    description,
-    category
-});
+        const expense = await Expense.create({
+            amount,
+            description,
+            category,
+            UserId: req.user.id
+        });
 
         res.status(201).json({
             message: "Expense added successfully",
@@ -26,10 +28,11 @@ const expense = await Expense.create({
     }
 });
 
-// Get all expenses
-router.get("/get-expense", async (req, res) => {
+// Get logged-in user's expenses
+router.get("/get-expense", authenticateUser, async (req, res) => {
     try {
         const expenses = await Expense.findAll({
+            where: { UserId: req.user.id },
             order: [["createdAt", "DESC"]]
         });
 
@@ -42,13 +45,16 @@ router.get("/get-expense", async (req, res) => {
     }
 });
 
-// Delete expense by ID
-router.delete("/delete-expense/:id", async (req, res) => {
+// Delete expense by ID, only if it belongs to the logged-in user
+router.delete("/delete-expense/:id", authenticateUser, async (req, res) => {
     try {
         const id = req.params.id;
 
         const deletedRows = await Expense.destroy({
-            where: { id }
+            where: {
+                id,
+                UserId: req.user.id
+            }
         });
 
         if (deletedRows === 0) {

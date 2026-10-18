@@ -21,13 +21,14 @@ loginForm.addEventListener("submit", async (event) => {
 
         const data = await response.json();
 
-        
-if (response.ok) {
-    alert(data.message);
-    window.location.href = "/frontend/expense/expense.html";
-} else {
-    document.getElementById("message").textContent = data.message;
-}
+        if (response.ok) {
+            localStorage.setItem("token", data.token);
+
+            alert(data.message);
+            window.location.href = "/frontend/expense/expense.html";
+        } else {
+            document.getElementById("message").textContent = data.message;
+        }
 
     } catch (error) {
         document.getElementById("message").textContent =
