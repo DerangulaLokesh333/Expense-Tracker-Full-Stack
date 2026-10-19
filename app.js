@@ -5,18 +5,24 @@ const path = require("path");
 
 const userRoutes = require("./routes/user");
 const expenseRoutes = require("./routes/expense");
+
 const sequelize = require("./util/database");
 const User = require("./models/user");
 const Expense = require("./models/expense");
-const jwt = require("jsonwebtoken");
+const Order = require("./models/order");
+const paymentRoutes = require("./routes/payment");
 
 User.hasMany(Expense, { foreignKey: "UserId" });
 Expense.belongsTo(User, { foreignKey: "UserId" });
+
+User.hasMany(Order);
+Order.belongsTo(User);
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/payment", paymentRoutes);
 
 app.use(express.static(path.join(__dirname, "frontend")));
 

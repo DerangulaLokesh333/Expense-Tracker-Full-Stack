@@ -5,8 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Expense Tracker</title>
+
+    <style>
+        .premium-container {
+            text-align: right;
+        }
+    </style>
+
+    <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 </head>
 <body>
+    <div class="premium-container">
+        <button type="button" id="buy-premium">
+            Buy Premium Membership
+        </button>
+    </div>
+
     <h1>Daily Expense Tracker</h1>
 
     <form id="expense-form">
@@ -19,7 +33,6 @@
             step="0.01"
             required
         >
-
         <br><br>
 
         <label for="description">Choose description:</label>
@@ -29,7 +42,6 @@
             name="description"
             required
         >
-
         <br><br>
 
         <label for="category">Choose a category:</label>
@@ -42,7 +54,6 @@
             <option value="Travel">Travel</option>
             <option value="Other">Other</option>
         </select>
-
         <br><br>
 
         <button type="submit">Add Expenses</button>
