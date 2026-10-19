@@ -1,14 +1,49 @@
 
 const API_URL = "http://localhost:3000/expense";
 const PAYMENT_URL = "http://localhost:3000/payment";
+const USER_URL = "http://localhost:3000/user";
+const PREMIUM_URL = "http://localhost:3000/premium";
 
 const expenseForm = document.getElementById("expense-form");
 const expenseList = document.getElementById("expense-list");
 const message = document.getElementById("message");
 const buyPremiumButton = document.getElementById("buy-premium");
+const premiumMessage = document.getElementById("premium-message");
+const leaderboardButton = document.getElementById("leaderboard-button");
+const leaderboardContainer = document.getElementById("leaderboard-container");
+const leaderboardList = document.getElementById("leaderboard-list");
 
 function getToken() {
     return localStorage.getItem("token");
+}
+
+// Fetch and display the logged-in user's premium status
+async function getUserProfile() {
+    try {
+        const response = await fetch(`${USER_URL}/profile`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`
+            }
+        });
+
+        const user = await response.json();
+
+        if (!response.ok) {
+            throw new Error(user.message || "Failed to fetch user profile");
+        }
+
+        if (user.isPremium) {
+            premiumMessage.textContent = "You are a premium user now";
+            buyPremiumButton.hidden = true;
+            leaderboardButton.hidden = false;
+        } else {
+            premiumMessage.textContent = "";
+            buyPremiumButton.hidden = false;
+            leaderboardButton.hidden = true;
+        }
+    } catch (error) {
+        console.error("Profile error:", error);
+    }
 }
 
 // Fetch and display expenses
@@ -158,5 +193,46 @@ buyPremiumButton.addEventListener("click", async () => {
     }
 });
 
-// Load expenses when the page opens
+// Fetch and display leaderboard
+async function showLeaderboard() {
+    try {
+        leaderboardButton.disabled = true;
+        leaderboardContainer.hidden = false;
+        leaderboardList.innerHTML = "Loading leaderboard...";
+
+        const response = await fetch(
+            `${PREMIUM_URL}/show-leaderboard`,
+            {
+                headers: {
+                    Authorization: `Bearer ${getToken()}`
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || "Failed to fetch leaderboard");
+        }
+
+        leaderboardList.innerHTML = "";
+
+        data.forEach((user) => {
+            const li = document.createElement("li");
+            li.textContent =
+                `${user.name} - Total Expenses: ₹${user.totalExpenses}`;
+            leaderboardList.appendChild(li);
+        });
+    } catch (error) {
+        console.error("Leaderboard error:", error);
+        leaderboardList.textContent = error.message;
+    } finally {
+        leaderboardButton.disabled = false;
+    }
+}
+
+leaderboardButton.addEventListener("click", showLeaderboard);
+
+// Load data when the page opens
+getUserProfile();
 getExpenses();

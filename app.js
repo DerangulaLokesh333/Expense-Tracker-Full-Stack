@@ -11,6 +11,7 @@ const User = require("./models/user");
 const Expense = require("./models/expense");
 const Order = require("./models/order");
 const paymentRoutes = require("./routes/payment");
+const premiumRoutes = require("./routes/premium");
 
 User.hasMany(Expense, { foreignKey: "UserId" });
 Expense.belongsTo(User, { foreignKey: "UserId" });
@@ -23,6 +24,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/payment", paymentRoutes);
+app.use("/premium", premiumRoutes);
 
 app.use(express.static(path.join(__dirname, "frontend")));
 

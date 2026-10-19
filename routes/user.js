@@ -4,6 +4,7 @@ const router = express.Router();
 const User = require("../models/user");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { authenticateUser } = require("../middleware/auth");
 
 router.post("/signup", async (req, res) => {
     try {
@@ -79,6 +80,29 @@ router.post("/login", async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Something went wrong"
+        });
+    }
+});
+
+// Get logged-in user's profile
+router.get("/profile", authenticateUser, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id, {
+            attributes: ["id", "name", "email", "isPremium"]
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("Profile fetch error:", error);
+
+        res.status(500).json({
+            message: "Failed to fetch user profile"
         });
     }
 });

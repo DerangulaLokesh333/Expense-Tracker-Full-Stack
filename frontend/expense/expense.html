@@ -16,8 +16,14 @@
 </head>
 <body>
     <div class="premium-container">
+        <p id="premium-message"></p>
+
         <button type="button" id="buy-premium">
             Buy Premium Membership
+        </button>
+
+        <button type="button" id="leaderboard-button" hidden>
+            Show Leaderboard
         </button>
     </div>
 
@@ -63,6 +69,11 @@
 
     <h2>Your Expenses</h2>
     <ul id="expense-list"></ul>
+
+    <div id="leaderboard-container" hidden>
+        <h2>Leaderboard</h2>
+        <ul id="leaderboard-list"></ul>
+    </div>
 
     <script src="./expense.js"></script>
 </body>
