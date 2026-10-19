@@ -1,30 +1,42 @@
-
 const express = require("express");
 const router = express.Router();
 
+const User = require("../models/user");
+const Expense = require("../models/expense");
 const sequelize = require("../util/database");
-const { QueryTypes } = require("sequelize");
 const { authenticateUser } = require("../middleware/auth");
 
-// Show leaderboard using a single SQL query
 router.get("/show-leaderboard", authenticateUser, async (req, res) => {
     try {
-        const leaderboard = await sequelize.query(
-            `SELECT
-                users.id AS userId,
-                users.name AS name,
-                COALESCE(SUM(expenses.amount), 0) AS totalExpenses
-            FROM users
-            LEFT JOIN expenses
-                ON users.id = expenses.UserId
-            GROUP BY users.id, users.name
-            ORDER BY totalExpenses DESC`,
-            {
-                type: QueryTypes.SELECT
-            }
-        );
+        const leaderboard = await User.findAll({
+            attributes: [
+                "id",
+                "name",
+                [
+                    sequelize.literal(`(
+                        SELECT COALESCE(SUM(amount), 0)
+                        FROM expenses
+                        WHERE expenses.UserId = User.id
+                    )`),
+                    "totalExpenses"
+                ]
+            ],
+            include: [
+                {
+                    model: Expense,
+                    attributes: []
+                }
+            ],
+            order: [[sequelize.literal("totalExpenses"), "DESC"]]
+        });
 
-        res.status(200).json(leaderboard);
+        res.status(200).json(
+            leaderboard.map(user => ({
+                userId: user.id,
+                name: user.name,
+                totalExpenses: Number(user.getDataValue("totalExpenses"))
+            }))
+        );
     } catch (error) {
         console.error("Leaderboard error:", error);
 
