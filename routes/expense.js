@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { GoogleGenAI } = require("@google/genai");
+const sequelize = require("../util/database");
 const Expense = require("../models/expense");
 const User = require("../models/user");
 const { authenticateUser } = require("../middleware/auth");
@@ -13,7 +14,7 @@ const ai = new GoogleGenAI({
 // Generate expense category using Gemini
 async function generateCategory(description) {
     const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: "gemini-3.5-flash",
         contents: `Categorize this expense description: "${description}".
 
 Examples:
@@ -38,6 +39,8 @@ Return only one short category name. Do not include explanations.`
 
 // Add expense
 router.post("/add-expense", authenticateUser, async (req, res) => {
+    let t;
+
     try {
         const { amount, description } = req.body;
 
@@ -57,25 +60,43 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
 
         const category = await generateCategory(description.trim());
 
-        const expense = await Expense.create({
-            amount: Number(amount),
-            description: description.trim(),
-            category,
-            UserId: req.user.id
-        });
+        t = await sequelize.transaction();
+
+        const expense = await Expense.create(
+            {
+                amount: Number(amount),
+                description: description.trim(),
+                category,
+                UserId: req.user.id
+            },
+            { transaction: t }
+        );
 
         await User.increment(
             { totalExpense: Number(amount) },
-            { where: { id: req.user.id } }
+            {
+                where: { id: req.user.id },
+                transaction: t
+            }
         );
 
-        res.status(201).json({
+        await t.commit();
+
+        return res.status(201).json({
             message: "Expense added successfully",
             expense
         });
     } catch (error) {
+        if (t && !t.finished) {
+            try {
+                await t.rollback();
+            } catch (rollbackError) {
+                console.error("Add expense rollback error:", rollbackError);
+            }
+        }
+
         console.error("Add expense error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             message: "Failed to add expense or generate category"
         });
     }
@@ -89,10 +110,10 @@ router.get("/get-expense", authenticateUser, async (req, res) => {
             order: [["createdAt", "DESC"]]
         });
 
-        res.status(200).json(expenses);
+        return res.status(200).json(expenses);
     } catch (error) {
         console.error(error);
-        res.status(500).json({
+        return res.status(500).json({
             message: "Failed to fetch expenses"
         });
     }
@@ -100,35 +121,53 @@ router.get("/get-expense", authenticateUser, async (req, res) => {
 
 // Delete expense by ID, only if it belongs to the logged-in user
 router.delete("/delete-expense/:id", authenticateUser, async (req, res) => {
+    let t;
+
     try {
-        const id = req.params.id;
+        t = await sequelize.transaction();
 
         const expense = await Expense.findOne({
             where: {
-                id,
+                id: req.params.id,
                 UserId: req.user.id
-            }
+            },
+            transaction: t
         });
 
         if (!expense) {
+            await t.rollback();
+
             return res.status(404).json({
                 message: "Expense not found"
             });
         }
 
+        await expense.destroy({ transaction: t });
+
         await User.decrement(
             { totalExpense: expense.amount },
-            { where: { id: req.user.id } }
+            {
+                where: { id: req.user.id },
+                transaction: t
+            }
         );
 
-        await expense.destroy();
+        await t.commit();
 
-        res.status(200).json({
+        return res.status(200).json({
             message: "Expense deleted successfully"
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({
+        if (t && !t.finished) {
+            try {
+                await t.rollback();
+            } catch (rollbackError) {
+                console.error("Delete expense rollback error:", rollbackError);
+            }
+        }
+
+        console.error("Delete expense error:", error);
+        return res.status(500).json({
             message: "Failed to delete expense"
         });
     }
