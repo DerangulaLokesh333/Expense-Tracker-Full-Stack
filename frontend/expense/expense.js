@@ -89,14 +89,20 @@ function displayExpense(expenses) {
     });
 }
 
-// Add an expense
+// Add an expense; the backend generates the category using Gemini
 expenseForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     try {
         const amount = document.getElementById("expenseamount").value;
-        const description = document.getElementById("description").value;
-        const category = document.getElementById("category").value;
+        const description = document.getElementById("description").value.trim();
+
+        if (!amount || !description) {
+            message.textContent = "Please enter the amount and description.";
+            return;
+        }
+
+        message.textContent = "Adding expense and generating category...";
 
         const response = await fetch(`${API_URL}/add-expense`, {
             method: "POST",
@@ -106,8 +112,7 @@ expenseForm.addEventListener("submit", async (event) => {
             },
             body: JSON.stringify({
                 amount,
-                description,
-                category
+                description
             })
         });
 
@@ -117,9 +122,11 @@ expenseForm.addEventListener("submit", async (event) => {
             throw new Error(result.message || "Failed to add expense");
         }
 
-        message.textContent = "Expense added successfully.";
+        message.textContent =
+            `Expense added successfully. Category: ${result.expense.category}`;
+
         expenseForm.reset();
-        getExpenses();
+        await getExpenses();
     } catch (error) {
         console.error("Add expense error:", error);
         message.textContent = error.message;
@@ -143,7 +150,7 @@ async function deleteExpense(id) {
         }
 
         message.textContent = "Expense deleted successfully.";
-        getExpenses();
+        await getExpenses();
     } catch (error) {
         console.error("Delete expense error:", error);
         message.textContent = error.message;

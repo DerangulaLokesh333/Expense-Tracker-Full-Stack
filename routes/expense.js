@@ -1,24 +1,71 @@
 
 const express = require("express");
 const router = express.Router();
+const { GoogleGenAI } = require("@google/genai");
 const Expense = require("../models/expense");
 const User = require("../models/user");
 const { authenticateUser } = require("../middleware/auth");
 
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY
+});
+
+// Generate expense category using Gemini
+async function generateCategory(description) {
+    const response = await ai.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: `Categorize this expense description: "${description}".
+
+Examples:
+Milk -> Groceries
+Shoes -> Footwear
+Bus ticket -> Transport
+Doctor appointment -> Healthcare
+Petrol -> Fuel
+Restaurant meal -> Food
+
+Return only one short category name. Do not include explanations.`
+    });
+
+    const category = response.text?.trim();
+
+    if (!category) {
+        throw new Error("Gemini did not return an expense category");
+    }
+
+    return category;
+}
+
 // Add expense
 router.post("/add-expense", authenticateUser, async (req, res) => {
     try {
-        const { amount, description, category } = req.body;
+        const { amount, description } = req.body;
+
+        if (
+            amount === undefined ||
+            amount === null ||
+            amount === "" ||
+            !Number.isFinite(Number(amount)) ||
+            Number(amount) <= 0 ||
+            typeof description !== "string" ||
+            !description.trim()
+        ) {
+            return res.status(400).json({
+                message: "A valid amount and description are required"
+            });
+        }
+
+        const category = await generateCategory(description.trim());
 
         const expense = await Expense.create({
-            amount,
-            description,
+            amount: Number(amount),
+            description: description.trim(),
             category,
             UserId: req.user.id
         });
 
         await User.increment(
-            { totalExpense: amount },
+            { totalExpense: Number(amount) },
             { where: { id: req.user.id } }
         );
 
@@ -27,9 +74,9 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
             expense
         });
     } catch (error) {
-        console.error(error);
+        console.error("Add expense error:", error);
         res.status(500).json({
-            message: "Failed to add expense"
+            message: "Failed to add expense or generate category"
         });
     }
 });
