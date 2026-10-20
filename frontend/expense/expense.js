@@ -13,6 +13,15 @@ const leaderboardButton = document.getElementById("leaderboard-button");
 const leaderboardContainer = document.getElementById("leaderboard-container");
 const leaderboardList = document.getElementById("leaderboard-list");
 
+// Report elements
+const timePeriod = document.getElementById("time-period");
+const downloadButton = document.getElementById("download-button");
+const reportTableBody = document.getElementById("report-table-body");
+const reportMessage = document.getElementById("report-message");
+
+let allExpenses = [];
+let isPremiumUser = false;
+
 function getToken() {
     return localStorage.getItem("token");
 }
@@ -32,17 +41,28 @@ async function getUserProfile() {
             throw new Error(user.message || "Failed to fetch user profile");
         }
 
-        if (user.isPremium) {
+        isPremiumUser = Boolean(user.isPremium);
+
+        if (isPremiumUser) {
             premiumMessage.textContent = "You are a premium user now";
             buyPremiumButton.hidden = true;
             leaderboardButton.hidden = false;
+
+            downloadButton.disabled = false;
+            reportMessage.textContent = "Download your expenses report.";
         } else {
             premiumMessage.textContent = "";
             buyPremiumButton.hidden = false;
             leaderboardButton.hidden = true;
+
+            downloadButton.disabled = true;
+            reportMessage.textContent = "Only for Premium Users";
         }
     } catch (error) {
         console.error("Profile error:", error);
+        isPremiumUser = false;
+        downloadButton.disabled = true;
+        reportMessage.textContent = "Only for Premium Users";
     }
 }
 
@@ -61,14 +81,17 @@ async function getExpenses() {
             throw new Error(expenses.message || "Failed to fetch expenses");
         }
 
-        displayExpense(expenses);
+        allExpenses = expenses;
+
+        displayExpense(allExpenses);
+        renderReport(allExpenses);
     } catch (error) {
         console.error("Fetch expenses error:", error);
         message.textContent = error.message;
     }
 }
 
-// Display expenses in the list
+// Display expenses in the existing expense list
 function displayExpense(expenses) {
     expenseList.innerHTML = "";
 
@@ -88,6 +111,181 @@ function displayExpense(expenses) {
         expenseList.appendChild(li);
     });
 }
+
+// Get the expenses matching the selected time period
+function getFilteredExpenses(expenses) {
+    const selectedPeriod = timePeriod.value;
+    const now = new Date();
+
+    if (selectedPeriod === "all") {
+        return expenses;
+    }
+
+    return expenses.filter((expense) => {
+        const expenseDate = new Date(expense.createdAt);
+
+        if (Number.isNaN(expenseDate.getTime())) {
+            return false;
+        }
+
+        if (selectedPeriod === "daily") {
+            return expenseDate.toDateString() === now.toDateString();
+        }
+
+        if (selectedPeriod === "weekly") {
+            // Use Monday as the first day of the week
+            const startOfWeek = new Date(now);
+            startOfWeek.setHours(0, 0, 0, 0);
+
+            const day = startOfWeek.getDay();
+            const daysFromMonday = (day + 6) % 7;
+
+            startOfWeek.setDate(
+                startOfWeek.getDate() - daysFromMonday
+            );
+
+            const startOfNextWeek = new Date(startOfWeek);
+            startOfNextWeek.setDate(startOfNextWeek.getDate() + 7);
+
+            return (
+                expenseDate >= startOfWeek &&
+                expenseDate < startOfNextWeek
+            );
+        }
+
+        if (selectedPeriod === "monthly") {
+            return (
+                expenseDate.getFullYear() === now.getFullYear() &&
+                expenseDate.getMonth() === now.getMonth()
+            );
+        }
+
+        return true;
+    });
+}
+
+// Display the report table
+function renderReport(expenses) {
+    reportTableBody.innerHTML = "";
+
+    const filteredExpenses = getFilteredExpenses(expenses);
+
+    if (filteredExpenses.length === 0) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+
+        cell.colSpan = 5;
+        cell.textContent = "No expenses found for this period.";
+
+        row.appendChild(cell);
+        reportTableBody.appendChild(row);
+        return;
+    }
+
+    filteredExpenses.forEach((expense) => {
+        const row = document.createElement("tr");
+        const expenseDate = new Date(expense.createdAt);
+
+        const dateCell = document.createElement("td");
+        dateCell.textContent = Number.isNaN(expenseDate.getTime())
+            ? "—"
+            : expenseDate.toLocaleDateString();
+
+        const descriptionCell = document.createElement("td");
+        descriptionCell.textContent = expense.description || "—";
+
+        const categoryCell = document.createElement("td");
+        categoryCell.textContent = expense.category || "—";
+
+        const incomeCell = document.createElement("td");
+        incomeCell.textContent = "—";
+
+        const expenseCell = document.createElement("td");
+        expenseCell.textContent = expense.amount ?? "—";
+
+        row.append(
+            dateCell,
+            descriptionCell,
+            categoryCell,
+            incomeCell,
+            expenseCell
+        );
+
+        reportTableBody.appendChild(row);
+    });
+}
+
+// Update the report when the selected period changes
+timePeriod.addEventListener("change", () => {
+    renderReport(allExpenses);
+});
+
+// Download the filtered report as a CSV file
+downloadButton.addEventListener("click", () => {
+    if (!isPremiumUser) {
+        reportMessage.textContent = "Only for Premium Users";
+        downloadButton.disabled = true;
+        return;
+    }
+
+    const filteredExpenses = getFilteredExpenses(allExpenses);
+
+    if (filteredExpenses.length === 0) {
+        reportMessage.textContent = "No expenses available to download.";
+        return;
+    }
+
+    const headers = [
+        "Date",
+        "Description",
+        "Category",
+        "Income",
+        "Expense"
+    ];
+
+    const rows = filteredExpenses.map((expense) => {
+        const expenseDate = new Date(expense.createdAt);
+
+        return [
+            Number.isNaN(expenseDate.getTime())
+                ? ""
+                : expenseDate.toLocaleDateString(),
+            expense.description || "",
+            expense.category || "",
+            "",
+            expense.amount ?? ""
+        ];
+    });
+
+    // Escape commas, quotation marks, and newlines in CSV values
+    const escapeCSV = (value) => {
+        const text = String(value);
+        return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const csvContent = [headers, ...rows]
+        .map((row) => row.map(escapeCSV).join(","))
+        .join("\r\n");
+
+    const blob = new Blob(
+        ["\uFEFF" + csvContent],
+        { type: "text/csv;charset=utf-8;" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "expense-report.csv";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    reportMessage.textContent = "Expense report downloaded successfully.";
+});
 
 // Add an expense; the backend generates the category using Gemini
 expenseForm.addEventListener("submit", async (event) => {

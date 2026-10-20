@@ -10,6 +10,31 @@
         .premium-container {
             text-align: right;
         }
+
+        #report-section {
+            margin-top: 30px;
+        }
+
+        #expense-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        #expense-table th,
+        #expense-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #expense-table th {
+            background-color: #f2f2f2;
+        }
+
+        #download-button:disabled {
+            cursor: not-allowed;
+        }
     </style>
 
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
@@ -57,6 +82,38 @@
 
     <h2>Your Expenses</h2>
     <ul id="expense-list"></ul>
+
+    <!-- Report Generation Section -->
+    <section id="report-section">
+        <h2>Expense Dashboard</h2>
+
+        <label for="time-period">View Expenses and Incomes:</label>
+        <select id="time-period">
+            <option value="all">All</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+        </select>
+
+        <button type="button" id="download-button" disabled>
+            Download Expenses
+        </button>
+
+        <table id="expense-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Income</th>
+                    <th>Expense</th>
+                </tr>
+            </thead>
+            <tbody id="report-table-body"></tbody>
+        </table>
+
+        <p id="report-message">Only for Premium Users</p>
+    </section>
 
     <div id="leaderboard-container" hidden>
         <h2>Leaderboard</h2>
