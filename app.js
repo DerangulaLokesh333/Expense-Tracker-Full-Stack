@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 
 const forgotPasswordRoutes = require("./routes/forgotPasswordRoute");
@@ -14,9 +15,13 @@ const Expense = require("./models/expense");
 const Order = require("./models/order");
 const paymentRoutes = require("./routes/payment");
 const premiumRoutes = require("./routes/premium");
+const ForgotPasswordRequests = require("./models/forgotPasswordRequests");
 
 User.hasMany(Expense, { foreignKey: "UserId" });
 Expense.belongsTo(User, { foreignKey: "UserId" });
+
+User.hasMany(ForgotPasswordRequests);
+ForgotPasswordRequests.belongsTo(User);
 
 User.hasMany(Order);
 Order.belongsTo(User);
@@ -25,11 +30,12 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
 app.use(forgotPasswordRoutes);
+console.log("Forgot password routes registered");
 
 app.use("/payment", paymentRoutes);
 app.use("/premium", premiumRoutes);
-
 
 app.use(express.static(path.join(__dirname, "frontend")));
 
