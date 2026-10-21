@@ -6,6 +6,9 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
+const morgan = require("morgan");
+const logger = require("./util/logger");
+
 const userRoutes = require("./routes/user");
 const expenseRoutes = require("./routes/expense");
 
@@ -32,6 +35,14 @@ app.use(cors({
     exposedHeaders: ["x-total-count"]
 }));
 app.use(express.json());
+
+app.use(
+    morgan("combined", {
+        stream: {
+            write: (message) => logger.info(message.trim())
+        }
+    })
+);
 
 app.use(forgotPasswordRoutes);
 console.log("Forgot password routes registered");
@@ -62,15 +73,40 @@ app.get("/expense", (req, res) => {
 app.use("/user", userRoutes);
 app.use("/expense", expenseRoutes);
 
+app.use((err, req, res, next) => {
+    logger.error("Request failed", {
+        method: req.method,
+        url: req.originalUrl,
+        error: err.message,
+        stack: err.stack
+    });
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(err.status || 500).json({
+        message: err.status && err.status < 500
+            ? err.message
+            : "Internal server error"
+    });
+});
+
+
 sequelize
     .sync()
     .then(() => {
         console.log("Database connected and tables synchronized");
 
-        app.listen(3000, () => {
-            console.log("Server running on port 3000");
+        const PORT = process.env.PORT || 3000;
+
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
         });
     })
     .catch((error) => {
-        console.error("Database connection failed:", error);
+        logger.error("Database connection failed", {
+            error: error.message,
+            stack: error.stack
+        });
     });
