@@ -4,7 +4,8 @@ const PAYMENT_URL = "http://localhost:3000/payment";
 const USER_URL = "http://localhost:3000/user";
 const PREMIUM_URL = "http://localhost:3000/premium";
 
-const ITEMS_PER_PAGE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const ALLOWED_PAGE_SIZES = [5, 10, 20, 40];
 
 const expenseForm = document.getElementById("expense-form");
 const expenseList = document.getElementById("expense-list");
@@ -19,9 +20,17 @@ const leaderboardList = document.getElementById("leaderboard-list");
 const previousPageButton = document.getElementById("previous-page");
 const nextPageButton = document.getElementById("next-page");
 const pageInfo = document.getElementById("page-info");
+const pageSizeSelect = document.getElementById("page-size");
 
 let currentPage = 1;
 let totalPages = 1;
+let totalExpenses = 0;
+
+const savedPageSize = Number(localStorage.getItem("expensePageSize"));
+
+let pageSize = ALLOWED_PAGE_SIZES.includes(savedPageSize)
+    ? savedPageSize
+    : DEFAULT_PAGE_SIZE;
 
 // Report elements
 const timePeriod = document.getElementById("time-period");
@@ -31,6 +40,11 @@ const reportMessage = document.getElementById("report-message");
 
 let allExpenses = [];
 let isPremiumUser = false;
+
+// Restore the selected page size in the dropdown
+if (pageSizeSelect) {
+    pageSizeSelect.value = String(pageSize);
+}
 
 function getToken() {
     return localStorage.getItem("token");
@@ -80,7 +94,7 @@ async function getUserProfile() {
 async function getExpenses(page = currentPage) {
     try {
         const response = await fetch(
-            `${API_URL}/get-expense?_page=${page}&_limit=${ITEMS_PER_PAGE}`,
+            `${API_URL}/get-expense?_page=${page}&_limit=${pageSize}`,
             {
                 headers: {
                     Authorization: `Bearer ${getToken()}`
@@ -94,17 +108,16 @@ async function getExpenses(page = currentPage) {
             throw new Error(expenses.message || "Failed to fetch expenses");
         }
 
-        // Read the total number of expenses from the response header
-        const totalCount = Number(
+        totalExpenses = Number(
             response.headers.get("x-total-count") || 0
         );
 
         totalPages = Math.max(
             1,
-            Math.ceil(totalCount / ITEMS_PER_PAGE)
+            Math.ceil(totalExpenses / pageSize)
         );
 
-        // If deletion reduced the number of pages, load the last valid page
+        // If the requested page no longer exists, load the last valid page
         if (page > totalPages) {
             return getExpenses(totalPages);
         }
@@ -114,19 +127,47 @@ async function getExpenses(page = currentPage) {
 
         displayExpense(allExpenses);
         renderReport(allExpenses);
-        updatePagination(totalCount);
+        updatePagination();
     } catch (error) {
         console.error("Fetch expenses error:", error);
         message.textContent = error.message;
     }
 }
 
-// Update pagination buttons and page information
-function updatePagination(totalCount) {
-    pageInfo.textContent = `Page ${currentPage} of ${totalPages} (${totalCount} expenses)`;
+// Update pagination information and buttons
+
+function updatePagination() {
+    if (totalExpenses === 0) {
+        pageInfo.textContent = "Page 1 of 1 (0 expenses)";
+    } else {
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalExpenses);
+
+        pageInfo.textContent =
+            `${start}-${end} of ${totalExpenses} expenses`;
+    }
 
     previousPageButton.disabled = currentPage <= 1;
     nextPageButton.disabled = currentPage >= totalPages;
+}
+
+
+// Change the selected number of expenses per page
+if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", async () => {
+        const selectedSize = Number(pageSizeSelect.value);
+
+        if (!ALLOWED_PAGE_SIZES.includes(selectedSize)) {
+            pageSizeSelect.value = String(pageSize);
+            return;
+        }
+
+        pageSize = selectedSize;
+        localStorage.setItem("expensePageSize", String(pageSize));
+
+        // Start from page 1 when the page size changes
+        await getExpenses(1);
+    });
 }
 
 // Go to the previous page
@@ -143,7 +184,7 @@ nextPageButton.addEventListener("click", () => {
     }
 });
 
-// Display expenses in the existing expense list
+// Display expenses
 function displayExpense(expenses) {
     expenseList.innerHTML = "";
 
@@ -172,7 +213,7 @@ function displayExpense(expenses) {
     });
 }
 
-// Get the expenses matching the selected time period
+// Get expenses matching the selected time period
 function getFilteredExpenses(expenses) {
     const selectedPeriod = timePeriod.value;
     const now = new Date();
@@ -193,7 +234,6 @@ function getFilteredExpenses(expenses) {
         }
 
         if (selectedPeriod === "weekly") {
-            // Use Monday as the first day of the week
             const startOfWeek = new Date(now);
             startOfWeek.setHours(0, 0, 0, 0);
 
@@ -275,12 +315,12 @@ function renderReport(expenses) {
     });
 }
 
-// Update the report when the selected period changes
+// Update report when the selected period changes
 timePeriod.addEventListener("change", () => {
     renderReport(allExpenses);
 });
 
-// Download the filtered report as a CSV file
+// Download the filtered report as CSV
 downloadButton.addEventListener("click", () => {
     if (!isPremiumUser) {
         reportMessage.textContent = "Only for Premium Users";
@@ -317,7 +357,6 @@ downloadButton.addEventListener("click", () => {
         ];
     });
 
-    // Escape commas, quotation marks, and newlines in CSV values
     const escapeCSV = (value) => {
         const text = String(value);
         return `"${text.replace(/"/g, '""')}"`;
@@ -347,7 +386,7 @@ downloadButton.addEventListener("click", () => {
     reportMessage.textContent = "Expense report downloaded successfully.";
 });
 
-// Add an expense; the backend generates the category using Gemini
+// Add an expense
 expenseForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -385,7 +424,7 @@ expenseForm.addEventListener("submit", async (event) => {
 
         expenseForm.reset();
 
-        // New expenses appear first because the backend sorts newest first
+        // Newest expenses appear on page 1
         await getExpenses(1);
     } catch (error) {
         console.error("Add expense error:", error);
@@ -393,7 +432,7 @@ expenseForm.addEventListener("submit", async (event) => {
     }
 });
 
-// Delete an expense
+// Delete an expense and refresh the current page
 async function deleteExpense(id) {
     try {
         const response = await fetch(`${API_URL}/delete-expense/${id}`, {
@@ -410,6 +449,8 @@ async function deleteExpense(id) {
         }
 
         message.textContent = "Expense deleted successfully.";
+
+        // getExpenses moves back if this page no longer exists
         await getExpenses(currentPage);
     } catch (error) {
         console.error("Delete expense error:", error);

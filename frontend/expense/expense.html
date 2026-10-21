@@ -36,15 +36,37 @@
             cursor: not-allowed;
         }
 
-        #pagination {
+        /* Expense Pagination */
+        #pagination-controls {
             margin-top: 15px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
             gap: 12px;
         }
 
-        #pagination button:disabled {
+        .rows-per-page,
+        .pagination-buttons {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #pagination-controls button:disabled {
             cursor: not-allowed;
+        }
+
+        /* Responsive pagination for small screens */
+        @media (max-width: 480px) {
+            #pagination-controls {
+                justify-content: flex-start;
+            }
+
+            #page-info {
+                width: 100%;
+                order: 3;
+            }
         }
     </style>
 
@@ -95,16 +117,29 @@
     <ul id="expense-list"></ul>
 
     <!-- Expense Pagination -->
-    <div id="pagination">
-        <button type="button" id="previous-page" disabled>
-            Previous
-        </button>
+    <div id="pagination-controls">
+        <div class="rows-per-page">
+            <label for="page-size">Rows per page:</label>
 
-        <span id="page-info">Page 1 of 1</span>
+            <select id="page-size">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="40">40</option>
+            </select>
+        </div>
 
-        <button type="button" id="next-page" disabled>
-            Next
-        </button>
+        <span id="page-info">Page 1 of 1 (0 expenses)</span>
+
+        <div class="pagination-buttons">
+            <button type="button" id="previous-page" disabled>
+                Previous
+            </button>
+
+            <button type="button" id="next-page" disabled>
+                Next
+            </button>
+        </div>
     </div>
 
     <!-- Report Generation Section -->
@@ -133,6 +168,7 @@
                     <th>Expense</th>
                 </tr>
             </thead>
+
             <tbody id="report-table-body"></tbody>
         </table>
 

@@ -96,17 +96,29 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
         }
 
         console.error("Add expense error:", error);
+
         return res.status(500).json({
             message: "Failed to add expense or generate category"
         });
     }
 });
 
-// Get logged-in user's expenses with pagination
+// Get logged-in user's expenses with selectable pagination
 router.get("/get-expense", authenticateUser, async (req, res) => {
     try {
-        const page = Math.max(1, parseInt(req.query._page, 10) || 1);
-        const limit = 10;
+        const page = Math.max(
+            1,
+            parseInt(req.query._page, 10) || 1
+        );
+
+        // Supported page sizes
+        const allowedLimits = [5, 10, 20, 40];
+        const requestedLimit = parseInt(req.query._limit, 10);
+
+        const limit = allowedLimits.includes(requestedLimit)
+            ? requestedLimit
+            : 10;
+
         const offset = (page - 1) * limit;
 
         const { count, rows } = await Expense.findAndCountAll({
@@ -116,11 +128,13 @@ router.get("/get-expense", authenticateUser, async (req, res) => {
             offset
         });
 
+        // Total number of expenses for the logged-in user
         res.setHeader("x-total-count", count);
 
         return res.status(200).json(rows);
     } catch (error) {
         console.error("Get expenses error:", error);
+
         return res.status(500).json({
             message: "Failed to fetch expenses"
         });
@@ -175,6 +189,7 @@ router.delete("/delete-expense/:id", authenticateUser, async (req, res) => {
         }
 
         console.error("Delete expense error:", error);
+
         return res.status(500).json({
             message: "Failed to delete expense"
         });
