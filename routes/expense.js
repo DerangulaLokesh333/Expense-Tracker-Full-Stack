@@ -42,7 +42,7 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
     let t;
 
     try {
-        const { amount, description } = req.body;
+        const { amount, description, note } = req.body;
 
         if (
             amount === undefined ||
@@ -67,6 +67,7 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
                 amount: Number(amount),
                 description: description.trim(),
                 category,
+                note: note?.trim() || null,
                 UserId: req.user.id
             },
             { transaction: t }

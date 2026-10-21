@@ -21,6 +21,10 @@ const Expense = sequelize.define("expense", {
         type: Sequelize.STRING,
         allowNull: false,
         defaultValue: "Other"
+    },
+    note: {
+        type: Sequelize.STRING,
+        allowNull: true
     }
 });
 
