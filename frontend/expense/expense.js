@@ -4,6 +4,8 @@ const PAYMENT_URL = "http://localhost:3000/payment";
 const USER_URL = "http://localhost:3000/user";
 const PREMIUM_URL = "http://localhost:3000/premium";
 
+const ITEMS_PER_PAGE = 10;
+
 const expenseForm = document.getElementById("expense-form");
 const expenseList = document.getElementById("expense-list");
 const message = document.getElementById("message");
@@ -12,6 +14,14 @@ const premiumMessage = document.getElementById("premium-message");
 const leaderboardButton = document.getElementById("leaderboard-button");
 const leaderboardContainer = document.getElementById("leaderboard-container");
 const leaderboardList = document.getElementById("leaderboard-list");
+
+// Pagination elements
+const previousPageButton = document.getElementById("previous-page");
+const nextPageButton = document.getElementById("next-page");
+const pageInfo = document.getElementById("page-info");
+
+let currentPage = 1;
+let totalPages = 1;
 
 // Report elements
 const timePeriod = document.getElementById("time-period");
@@ -66,14 +76,17 @@ async function getUserProfile() {
     }
 }
 
-// Fetch and display expenses
-async function getExpenses() {
+// Fetch and display one page of expenses
+async function getExpenses(page = currentPage) {
     try {
-        const response = await fetch(`${API_URL}/get-expense`, {
-            headers: {
-                Authorization: `Bearer ${getToken()}`
+        const response = await fetch(
+            `${API_URL}/get-expense?_page=${page}&_limit=${ITEMS_PER_PAGE}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${getToken()}`
+                }
             }
-        });
+        );
 
         const expenses = await response.json();
 
@@ -81,22 +94,69 @@ async function getExpenses() {
             throw new Error(expenses.message || "Failed to fetch expenses");
         }
 
+        // Read the total number of expenses from the response header
+        const totalCount = Number(
+            response.headers.get("x-total-count") || 0
+        );
+
+        totalPages = Math.max(
+            1,
+            Math.ceil(totalCount / ITEMS_PER_PAGE)
+        );
+
+        // If deletion reduced the number of pages, load the last valid page
+        if (page > totalPages) {
+            return getExpenses(totalPages);
+        }
+
+        currentPage = page;
         allExpenses = expenses;
 
         displayExpense(allExpenses);
         renderReport(allExpenses);
+        updatePagination(totalCount);
     } catch (error) {
         console.error("Fetch expenses error:", error);
         message.textContent = error.message;
     }
 }
 
+// Update pagination buttons and page information
+function updatePagination(totalCount) {
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages} (${totalCount} expenses)`;
+
+    previousPageButton.disabled = currentPage <= 1;
+    nextPageButton.disabled = currentPage >= totalPages;
+}
+
+// Go to the previous page
+previousPageButton.addEventListener("click", () => {
+    if (currentPage > 1) {
+        getExpenses(currentPage - 1);
+    }
+});
+
+// Go to the next page
+nextPageButton.addEventListener("click", () => {
+    if (currentPage < totalPages) {
+        getExpenses(currentPage + 1);
+    }
+});
+
 // Display expenses in the existing expense list
 function displayExpense(expenses) {
     expenseList.innerHTML = "";
 
+    if (expenses.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "No expenses found.";
+        expenseList.appendChild(li);
+        return;
+    }
+
     expenses.forEach((expense) => {
         const li = document.createElement("li");
+
         li.textContent =
             `${expense.amount} - ${expense.category} - ${expense.description} `;
 
@@ -324,7 +384,9 @@ expenseForm.addEventListener("submit", async (event) => {
             `Expense added successfully. Category: ${result.expense.category}`;
 
         expenseForm.reset();
-        await getExpenses();
+
+        // New expenses appear first because the backend sorts newest first
+        await getExpenses(1);
     } catch (error) {
         console.error("Add expense error:", error);
         message.textContent = error.message;
@@ -348,7 +410,7 @@ async function deleteExpense(id) {
         }
 
         message.textContent = "Expense deleted successfully.";
-        await getExpenses();
+        await getExpenses(currentPage);
     } catch (error) {
         console.error("Delete expense error:", error);
         message.textContent = error.message;

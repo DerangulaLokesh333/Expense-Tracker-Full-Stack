@@ -102,17 +102,25 @@ router.post("/add-expense", authenticateUser, async (req, res) => {
     }
 });
 
-// Get logged-in user's expenses
+// Get logged-in user's expenses with pagination
 router.get("/get-expense", authenticateUser, async (req, res) => {
     try {
-        const expenses = await Expense.findAll({
+        const page = Math.max(1, parseInt(req.query._page, 10) || 1);
+        const limit = 10;
+        const offset = (page - 1) * limit;
+
+        const { count, rows } = await Expense.findAndCountAll({
             where: { UserId: req.user.id },
-            order: [["createdAt", "DESC"]]
+            order: [["createdAt", "DESC"]],
+            limit,
+            offset
         });
 
-        return res.status(200).json(expenses);
+        res.setHeader("x-total-count", count);
+
+        return res.status(200).json(rows);
     } catch (error) {
-        console.error(error);
+        console.error("Get expenses error:", error);
         return res.status(500).json({
             message: "Failed to fetch expenses"
         });

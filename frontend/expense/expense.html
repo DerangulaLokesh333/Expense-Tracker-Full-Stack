@@ -35,6 +35,17 @@
         #download-button:disabled {
             cursor: not-allowed;
         }
+
+        #pagination {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #pagination button:disabled {
+            cursor: not-allowed;
+        }
     </style>
 
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
@@ -82,6 +93,19 @@
 
     <h2>Your Expenses</h2>
     <ul id="expense-list"></ul>
+
+    <!-- Expense Pagination -->
+    <div id="pagination">
+        <button type="button" id="previous-page" disabled>
+            Previous
+        </button>
+
+        <span id="page-info">Page 1 of 1</span>
+
+        <button type="button" id="next-page" disabled>
+            Next
+        </button>
+    </div>
 
     <!-- Report Generation Section -->
     <section id="report-section">
