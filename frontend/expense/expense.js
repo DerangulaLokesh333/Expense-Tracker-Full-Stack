@@ -3,6 +3,7 @@ const API_URL = "http://localhost:3000/expense";
 const PAYMENT_URL = "http://localhost:3000/payment";
 const USER_URL = "http://localhost:3000/user";
 const PREMIUM_URL = "http://localhost:3000/premium";
+const REPORT_URL = "http://localhost:3000/report";
 
 const DEFAULT_PAGE_SIZE = 10;
 const ALLOWED_PAGE_SIZES = [5, 10, 20, 40];
@@ -22,24 +23,24 @@ const nextPageButton = document.getElementById("next-page");
 const pageInfo = document.getElementById("page-info");
 const pageSizeSelect = document.getElementById("page-size");
 
+// Report elements
+const timePeriod = document.getElementById("time-period");
+const downloadButton = document.getElementById("download-button");
+const reportTableBody = document.getElementById("report-table-body");
+const reportMessage = document.getElementById("report-message");
+const reportHistory = document.getElementById("report-history");
+
 let currentPage = 1;
 let totalPages = 1;
 let totalExpenses = 0;
+let allExpenses = [];
+let isPremiumUser = false;
 
 const savedPageSize = Number(localStorage.getItem("expensePageSize"));
 
 let pageSize = ALLOWED_PAGE_SIZES.includes(savedPageSize)
     ? savedPageSize
     : DEFAULT_PAGE_SIZE;
-
-// Report elements
-const timePeriod = document.getElementById("time-period");
-const downloadButton = document.getElementById("download-button");
-const reportTableBody = document.getElementById("report-table-body");
-const reportMessage = document.getElementById("report-message");
-
-let allExpenses = [];
-let isPremiumUser = false;
 
 // Restore the selected page size in the dropdown
 if (pageSizeSelect) {
@@ -74,6 +75,8 @@ async function getUserProfile() {
 
             downloadButton.disabled = false;
             reportMessage.textContent = "Download your expenses report.";
+
+            await loadReportHistory();
         } else {
             premiumMessage.textContent = "";
             buyPremiumButton.hidden = false;
@@ -81,6 +84,10 @@ async function getUserProfile() {
 
             downloadButton.disabled = true;
             reportMessage.textContent = "Only for Premium Users";
+
+            if (reportHistory) {
+                reportHistory.innerHTML = "";
+            }
         }
     } catch (error) {
         console.error("Profile error:", error);
@@ -135,7 +142,6 @@ async function getExpenses(page = currentPage) {
 }
 
 // Update pagination information and buttons
-
 function updatePagination() {
     if (totalExpenses === 0) {
         pageInfo.textContent = "Page 1 of 1 (0 expenses)";
@@ -150,7 +156,6 @@ function updatePagination() {
     previousPageButton.disabled = currentPage <= 1;
     nextPageButton.disabled = currentPage >= totalPages;
 }
-
 
 // Change the selected number of expenses per page
 if (pageSizeSelect) {
@@ -320,70 +325,104 @@ timePeriod.addEventListener("change", () => {
     renderReport(allExpenses);
 });
 
-// Download the filtered report as CSV
-downloadButton.addEventListener("click", () => {
+// Fetch and display previously generated reports
+async function loadReportHistory() {
+    if (!reportHistory || !isPremiumUser) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${REPORT_URL}/history`, {
+            headers: {
+                Authorization: `Bearer ${getToken()}`
+            }
+        });
+
+        const reports = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                reports.message || "Failed to load report history"
+            );
+        }
+
+        reportHistory.innerHTML = "";
+
+        if (reports.length === 0) {
+            reportHistory.textContent = "No previous reports.";
+            return;
+        }
+
+        reports.forEach((report) => {
+            const item = document.createElement("p");
+            const link = document.createElement("a");
+            const date = new Date(report.createdAt);
+
+            link.href = report.downloadUrl;
+            link.textContent = "Download expense report";
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+
+            item.append(
+                document.createTextNode(
+                    `${date.toLocaleString()} — `
+                ),
+                link
+            );
+
+            reportHistory.appendChild(item);
+        });
+    } catch (error) {
+        console.error("Report history error:", error);
+
+        reportHistory.textContent =
+            "Unable to load previous reports.";
+    }
+}
+
+// Generate a report on the backend and upload it to S3
+downloadButton.addEventListener("click", async () => {
     if (!isPremiumUser) {
         reportMessage.textContent = "Only for Premium Users";
+        return;
+    }
+
+    try {
         downloadButton.disabled = true;
-        return;
+        reportMessage.textContent = "Generating your report...";
+
+        const response = await fetch(`${REPORT_URL}/generate`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${getToken()}`
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                result.message || "Failed to generate report"
+            );
+        }
+
+        reportMessage.textContent = "Your report is ready: ";
+
+        const link = document.createElement("a");
+        link.href = result.downloadUrl;
+        link.textContent = "Open expense report";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
+        reportMessage.appendChild(link);
+
+        await loadReportHistory();
+    } catch (error) {
+        console.error("Report generation error:", error);
+        reportMessage.textContent = error.message;
+    } finally {
+        downloadButton.disabled = !isPremiumUser;
     }
-
-    const filteredExpenses = getFilteredExpenses(allExpenses);
-
-    if (filteredExpenses.length === 0) {
-        reportMessage.textContent = "No expenses available to download.";
-        return;
-    }
-
-    const headers = [
-        "Date",
-        "Description",
-        "Category",
-        "Income",
-        "Expense"
-    ];
-
-    const rows = filteredExpenses.map((expense) => {
-        const expenseDate = new Date(expense.createdAt);
-
-        return [
-            Number.isNaN(expenseDate.getTime())
-                ? ""
-                : expenseDate.toLocaleDateString(),
-            expense.description || "",
-            expense.category || "",
-            "",
-            expense.amount ?? ""
-        ];
-    });
-
-    const escapeCSV = (value) => {
-        const text = String(value);
-        return `"${text.replace(/"/g, '""')}"`;
-    };
-
-    const csvContent = [headers, ...rows]
-        .map((row) => row.map(escapeCSV).join(","))
-        .join("\r\n");
-
-    const blob = new Blob(
-        ["\uFEFF" + csvContent],
-        { type: "text/csv;charset=utf-8;" }
-    );
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "expense-report.csv";
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
-
-    reportMessage.textContent = "Expense report downloaded successfully.";
 });
 
 // Add an expense
@@ -480,7 +519,9 @@ buyPremiumButton.addEventListener("click", async () => {
         }
 
         if (!result.paymentSessionId) {
-            throw new Error("Payment session ID was not returned by the server.");
+            throw new Error(
+                "Payment session ID was not returned by the server."
+            );
         }
 
         const cashfree = Cashfree({
@@ -520,7 +561,9 @@ async function showLeaderboard() {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.message || "Failed to fetch leaderboard");
+            throw new Error(
+                data.message || "Failed to fetch leaderboard"
+            );
         }
 
         leaderboardList.innerHTML = "";

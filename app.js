@@ -18,10 +18,16 @@ const Expense = require("./models/expense");
 const Order = require("./models/order");
 const paymentRoutes = require("./routes/payment");
 const premiumRoutes = require("./routes/premium");
+const reportRoutes = require("./routes/report");
 const ForgotPasswordRequests = require("./models/forgotPasswordRequests");
+
+const Report = require("./models/report");
 
 User.hasMany(Expense, { foreignKey: "UserId" });
 Expense.belongsTo(User, { foreignKey: "UserId" });
+
+User.hasMany(Report);
+Report.belongsTo(User);
 
 User.hasMany(ForgotPasswordRequests);
 ForgotPasswordRequests.belongsTo(User);
@@ -49,6 +55,7 @@ console.log("Forgot password routes registered");
 
 app.use("/payment", paymentRoutes);
 app.use("/premium", premiumRoutes);
+app.use("/report", reportRoutes);
 
 app.use(express.static(path.join(__dirname, "frontend")));
 
